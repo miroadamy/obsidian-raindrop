@@ -36,6 +36,12 @@ sort: title
 | search     |    N     | [See Raindrop Search Examples](https://help.raindrop.io/using-search/#operators) | A text search query just as you would enter in the Raindrop UI to return a list of bookmarks   |
 | showTags   |    Y     | 'true' or 'false'                                                                | Displays tags for each bookmark; defaults to true                                              |
 | highlights |    Y     | 'true' or 'false' | show highlights for the returned bookmarks |
+| nested     |    Y     | 'true' or 'false' | also include bookmarks from the collection's child collections (the whole subtree); defaults to false |
+| limit      |    Y     | number | cap the total number of results; defaults to no limit (fetch every matching bookmark) |
+
+> **Note on pagination:** the plugin fetches *all* matching bookmarks (50 per request, up to a 5000-item safety cap), not just the first page. Use `limit` to stop early — e.g. `sort: -created` + `limit: 10` for a "10 most recent" widget.
+>
+> **Note on `nested`:** a parent collection that only organises sub-collections returns 0 bookmarks on its own. Add `nested: true` to aggregate everything filed in it and its descendants.
 
 #### Finding the collection ID
 1. Visit your raindrop collection via the website, e.g. https://app.raindrop.io/my/15660833

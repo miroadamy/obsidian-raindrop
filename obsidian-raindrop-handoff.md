@@ -48,6 +48,19 @@ bookmark" / "create note from bookmark" are listed as *planned*, unimplemented).
 2. Installed in-vault, enabled, and the `raindrop` block **renders bookmarks**. ✅
    (Switch the note to Reading view / Live Preview — code-block processors don't
    run in raw source mode.)
+3. **Pagination** — `getRaindropsCollection` loops pages (50/req, short-page break).
+   Runtime-verified against the live account: a nested parent query returned all
+   **163** bookmarks across 4 pages (50+50+50+13). `sort` (`-created`, `title`) and
+   `search` confirmed working server-side. ✅
+4. **`nested:` param** — added (`types.ts` → `main.ts` → `src/raindrop.ts`); passes
+   `nested=true` to the API. Verified: `2-a` (66266433) returns 0 directly, 163 with
+   `nested: true`. ✅
+5. **`limit:` param** — caps total results; shrinks page size when `limit < 50` to
+   avoid over-fetching. Compiled into the bundle. ✅
+6. **Security:** the test token had been hardcoded in `get-collection-*.sh` and pushed
+   to the **public** GitHub repo (commit `5297d94`). Scripts rewritten to read the token
+   from the gitignored `data.json`; **the exposed token was rotated** and the old one
+   confirmed dead. ✅
 
 ## Verified reference facts
 
@@ -64,69 +77,33 @@ bookmark" / "create note from bookmark" are listed as *planned*, unimplemented).
 ### Plugin behavior (read from source) ✅
 - Code block params parsed in `main.ts`; `collection` is run through `parseInt`,
   so collections are referenced by **numeric ID, not name**.
-- `getRaindropsCollection` in `src/raindrop.ts` sends only `search` and `sort` —
-  **no `perpage`, no `page`, no `nested`**. Consequences:
-  - Returns only the API's default first page → "not all bookmarks" bug.
-  - A parent-folder query (`collection: <parentID>`) returns only raindrops filed
-    *directly* in it; bookmarks in child collections are excluded (no `nested=true`).
+- `getRaindropsCollection` in `src/raindrop.ts` now paginates (`perpage=50` + `page`)
+  and accepts `nested` and `limit`. The historical "not all bookmarks" bug (first page
+  only) and the "parent folder excludes children" limitation are both fixed — use
+  `nested: true` to pull the subtree. ✅
 - Obsidian API surface is small and uses only stable, still-current symbols
   (`Plugin`, `PluginSettingTab`, `Setting`, `registerMarkdownCodeBlockProcessor`).
   Nothing removed/deprecated → low runtime-compat risk. ✅
 
-## Pending tasks (in priority order)
+## Completed (2026-06-03 session) ✅
 
-### 1. Apply the pagination patch (fixes "not all bookmarks")
-Replace `getRaindropsCollection` in `src/raindrop.ts` with the version below.
-**This compiles cleanly** (verified with `tsc` + esbuild). ✅ Runtime against a
-live account **not yet verified** — confirm the rendered count matches expectations. ⚠️
+All three originally-pending tasks are done — built (`npm run build`, `tsc` 0 errors),
+plugin reloaded via the Obsidian CLI (`obsidian plugin:reload id=obsidian-raindrop`),
+and verified against the live account:
 
-```ts
-const getRaindropsCollection = async (
-  collectionID: number = 0,
-  search: string,
-  sort: string,
-  accessToken: string
-) => {
-  const PERPAGE = 50;     // Raindrop API maximum
-  const MAX_PAGES = 100;  // safety cap (= up to 5000 bookmarks)
-  let page = 0;
-  let allItems: any[] = [];
+1. **Pagination** — fetches every page, not just the first. Verified (163 across 4 pages).
+2. **`nested:`** — `collection: <parentID>` + `nested: true` pulls the whole subtree.
+3. **`limit:`** — per-query cap on total results (e.g. `sort: -created` + `limit: 10`).
 
-  while (page < MAX_PAGES) {
-    const params: Record<string, any> = { perpage: PERPAGE, page };
-    if (search) params.search = search;
-    if (sort) params.sort = sort;
+The full param reference + collection-ID list now live in the vault note
+`notes/2-area/INFRA/apps/Raindrop bookmark query blocks.md`, with a regeneration
+guide/prompt appended to `notes/2-area/INFRA/+2-A-INFRA MOC.md`. README updated too.
 
-    const url = new URL(`${RAINDROP_API_BASE}raindrops/${collectionID}`);
-    url.search = new URLSearchParams(params).toString();
-
-    const result = await fetch(url.toString(), {
-      method: "GET",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    const raindrops = await result.json();
-    const items = raindrops.items ?? [];
-    allItems = allItems.concat(items);
-
-    if (items.length < PERPAGE) break; // short page = last page
-    page++;
-  }
-
-  console.log("getRaindropsCollection total", allItems.length);
-  return allItems;
-};
-```
-- ⚠️ More pages = more sequential calls. Raindrop rate limit is 120 req/min — fine
-  for normal libraries; raise `MAX_PAGES` only if a single query exceeds ~5000 items.
-
-### 2. Add a `nested:` code-block param (optional)
-So `collection: <parentID>` + `nested: true` pulls the whole subtree. Threads through:
-`src/types.ts` (add to the query type) → `main.ts` (parse the param, default false) →
-`src/raindrop.ts` (pass `nested` into `params` when true). Not yet written. 📖
-
-### 3. Optional `limit:` / `perpage:` code-block param
-Per-query cap on results, for when you *don't* want "fetch everything". Not yet written. 📖
+### Possible next steps (not requested)
+- Add a `count` field to `get-collection-ids.sh` output so the reference note can be
+  regenerated entirely from the script (counts currently need a separate API read).
+- README's "search optional = N" cell is misleading — `search` is optional; the real
+  requirement is `collection` **or** `raindropIDs`.
 
 ## Open question / runtime unknown ⚠️
 
