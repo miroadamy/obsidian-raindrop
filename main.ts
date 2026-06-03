@@ -8,11 +8,7 @@ import {
 } from "obsidian";
 import RaindropBlockQueryProvider from "src/components/RaindropBlockQueryProvider.svelte";
 
-import type {
-  BlockQueryMap,
-  BlockQueryMapKeys,
-} from "src/types";
-
+import type { BlockQueryMap, BlockQueryMapKeys } from "src/types";
 
 export interface ObsidianRaindropSettings {
   raindropAccessToken: string;
@@ -26,7 +22,6 @@ const DEFAULT_SETTINGS: ObsidianRaindropSettings = {
 
 export default class ObsidianRaindrop extends Plugin {
   settings: ObsidianRaindropSettings;
-  
 
   async onload() {
     // console.info("onload");
@@ -101,6 +96,8 @@ export default class ObsidianRaindrop extends Plugin {
       sort: "",
       showTags: true,
       collection: undefined,
+      nested: false,
+      limit: null,
     };
 
     Object.keys(paramMap).forEach((key: BlockQueryMapKeys) => {
@@ -109,12 +106,17 @@ export default class ObsidianRaindrop extends Plugin {
       let result: string | number =
         matchArr && matchArr.length > 1 ? matchArr[1].trim() : null;
       console.log(key, result);
-      if (key === 'collection') {
-        paramMap['collection'] = (result === null) ? null : parseInt(result);
-      } else if (key === 'showTags') {
-        paramMap['showTags'] = (result !== 'false');
-      } else if (key === 'highlights') {
-        paramMap['highlights'] = (result === 'true');
+      if (key === "collection") {
+        paramMap["collection"] = result === null ? null : parseInt(result);
+      } else if (key === "showTags") {
+        paramMap["showTags"] = result !== "false";
+      } else if (key === "highlights") {
+        paramMap["highlights"] = result === "true";
+      } else if (key === "nested") {
+        paramMap["nested"] = result === "true";
+      } else if (key === "limit") {
+        const limitAsInt = result === null ? NaN : parseInt(result);
+        paramMap["limit"] = isNaN(limitAsInt) ? null : limitAsInt;
       } else {
         paramMap[key] = result;
       }
@@ -181,8 +183,7 @@ class ObsidianRaindropSettingsTab extends PluginSettingTab {
           .setValue(this.plugin.settings.bookmarkListRefreshInterval.toString())
           .onChange(async (value) => {
             const valueAsInt = parseInt(value);
-            if(isNaN(valueAsInt)) {
-              
+            if (isNaN(valueAsInt)) {
             }
             this.plugin.settings.bookmarkListRefreshInterval = valueAsInt;
             await this.plugin.saveSettings();
